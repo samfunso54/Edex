@@ -53,13 +53,13 @@ export default function App() {
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           <FirebaseProvider>
-            <div className="min-h-screen bg-black text-white selection:bg-brand/30">
+            <div className="min-h-screen bg-black text-white selection:bg-brand/30 flex flex-col">
             <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(20,241,149,0.05),transparent_50%)] pointer-events-none" />
             
             <Header />
             
-            <main className="max-w-7xl mx-auto px-4 pt-8 pb-20">
-              <div className="max-w-[440px] mx-auto space-y-5">
+            <main className="flex-1 flex items-center justify-center w-full max-w-7xl mx-auto px-4 py-8">
+              <div className="w-full max-w-[440px] space-y-5">
                 <motion.div 
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}

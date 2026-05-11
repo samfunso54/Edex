@@ -31,7 +31,7 @@ export const Footer = () => {
           <div className="flex space-x-3 md:justify-end">
             <a href="#" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Twitter size={16} /></a>
             <a href="#" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><MessageCircle size={16} /></a>
-            <a href="#" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Github size={16} /></a>
+            <a href="https://github.com/samfunso54/Edex" target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Github size={16} /></a>
           </div>
         </div>
       </div>
