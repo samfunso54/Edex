@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isEmailVerified() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Entity Validations ---
+
+    function isValidUser(data) {
+      return data.uid is string && data.uid.size() <= 128 &&
+             (data.get('email', '') is string && data.get('email', '').size() <= 256) &&
+             (data.get('displayName', '') is string && data.get('displayName', '').size() <= 128) &&
+             (data.get('photoURL', '') is string && data.get('photoURL', '').size() <= 512) &&
+             (data.get('walletAddress', '') is string && data.get('walletAddress', '').size() <= 128);
+    }
+
+    function isValidSwap(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.fromToken is string && data.fromToken.size() <= 64 &&
+             data.toToken is string && data.toToken.size() <= 64 &&
+             data.fromAmount is number && data.fromAmount > 0 &&
+             data.toAmount is number && data.toAmount > 0 &&
+             data.status in ['pending', 'completed', 'failed'] &&
+             (data.get('signature', '') is string && data.get('signature', '').size() <= 200) &&
+             (data.get('network', '') is string && data.get('network', '').size() <= 32);
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().uid == userId && incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && isValidUser(incoming()) && (
+        incoming().diff(existing()).affectedKeys().hasOnly(['email', 'displayName', 'photoURL', 'walletAddress', 'lastLoginAt'])
+      );
+      allow delete: if false;
+    }
+
+    match /swaps/{swapId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      
+      allow create: if isSignedIn() && isValidSwap(incoming()) && 
+                    incoming().userId == request.auth.uid && 
+                    incoming().timestamp == request.time &&
+                    incoming().status == 'pending';
+      
+      allow update: if isSignedIn() && existing().userId == request.auth.uid && 
+                    isValidSwap(incoming()) &&
+                    existing().status == 'pending' && (
+                      incoming().diff(existing()).affectedKeys().hasOnly(['status', 'signature', 'toAmount'])
+                    );
+      
+      allow delete: if false;
+    }
+  }
+}

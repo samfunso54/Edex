@@ -1,0 +1,5 @@
+{
+  "name": "Edexchange",
+  "description": "A high-throughput Solana DEX aggregator with real-time analytics and Firebase-backed swap history.",
+  "requestFramePermissions": []
+}

@@ -1,0 +1,46 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile and preferences",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "walletAddress": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "lastLoginAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "createdAt"]
+    },
+    "Swap": {
+      "title": "Swap",
+      "description": "Record of a token swap transaction",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "fromToken": { "type": "string" },
+        "toToken": { "type": "string" },
+        "fromAmount": { "type": "number" },
+        "toAmount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "signature": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "network": { "type": "string" }
+      },
+      "required": ["userId", "fromToken", "toToken", "fromAmount", "toAmount", "status", "timestamp"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "/swaps/{swapId}": {
+      "schema": "Swap",
+      "description": "Individual swap records"
+    }
+  }
+}
