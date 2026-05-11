@@ -8,6 +8,7 @@ import { Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
 import Decimal from 'decimal.js';
 import { createJitoTipInstruction, sendJitoBundle } from '../services/jitoService';
 import { fetchTokenPrices } from '../services/priceService';
+import { fetchSolBalance, fetchTokenBalances } from '../services/balanceService';
 import { analyzeSwap, SwapAnalysis } from '../services/geminiService';
 import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -35,6 +36,58 @@ export const SwapCard = () => {
   const [analysis, setAnalysis] = useState<SwapAnalysis | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [tokenPrices, setTokenPrices] = useState<Record<string, number>>({});
+  const [balances, setBalances] = useState<Record<string, number>>({});
+
+  // SOL mint constant
+  const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+  // Log connection status
+  useEffect(() => {
+    if (publicKey) {
+      console.log("App state:", {
+        network: "devnet",
+        publicKey: publicKey.toBase58(),
+        rpc: connection.rpcEndpoint
+      });
+    }
+  }, [publicKey, connection]);
+
+  // Fetch balances
+  useEffect(() => {
+    if (!publicKey) {
+      setBalances({});
+      return;
+    }
+
+    let isMounted = true;
+    const updateBalances = async () => {
+      try {
+        console.log("Fetching balances for:", publicKey.toBase58());
+        const [solBalance, tokenBalances] = await Promise.all([
+          fetchSolBalance(connection, publicKey),
+          fetchTokenBalances(connection, publicKey)
+        ]);
+        
+        if (isMounted) {
+          console.log("Balances updated:", { SOL: solBalance, Tokens: Object.keys(tokenBalances).length });
+          setBalances({
+            [SOL_MINT]: solBalance,
+            ...tokenBalances
+          });
+        }
+      } catch (error) {
+        console.error("Failed to update balances:", error);
+      }
+    };
+
+    updateBalances();
+    const interval = setInterval(updateBalances, 5000); 
+    
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [publicKey, connection]);
 
   // Fetch prices on interval
   useEffect(() => {
@@ -193,7 +246,24 @@ export const SwapCard = () => {
           <div className="bg-white/5 border border-white/5 rounded-2xl p-3.5 transition-all focus-within:bg-white/[0.08] focus-within:border-white/10">
             <div className="flex justify-between mb-1.5">
               <label className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">You Pay</label>
-              <span className="text-[9px] font-bold text-gray-500 uppercase tracking-widest">Balance: 0.00</span>
+              <div className="flex items-center space-x-2">
+                <button 
+                  onClick={() => {
+                    // Manual trigger via re-render or just let the interval handle it
+                    // For now, we'll just show it's clickable
+                  }}
+                  className="p-0.5 text-gray-600 hover:text-brand transition-colors"
+                  title="Auto-refreshing every 5s"
+                >
+                  <Clock size={10} className="animate-pulse" />
+                </button>
+                <button 
+                  onClick={() => setFromAmount((balances[fromToken.mint] || 0).toString())}
+                  className="text-[9px] font-bold text-gray-500 hover:text-brand transition-colors uppercase tracking-widest cursor-pointer"
+                >
+                  Balance: {formatNumber(balances[fromToken.mint] || 0)}
+                </button>
+              </div>
             </div>
             <div className="flex items-center">
               <input 
@@ -351,6 +421,7 @@ export const SwapCard = () => {
       <AnimatePresence>
         {showTokenSelector && (
           <TokenSelectorModal 
+            balances={balances}
             onClose={() => setShowTokenSelector(null)}
             onSelect={(token) => {
               if (showTokenSelector === 'from') setFromToken(token);
@@ -474,7 +545,7 @@ const HistoryModal = ({ onClose }: { onClose: () => void }) => {
   );
 };
 
-const TokenSelectorModal = ({ onClose, onSelect }: { onClose: () => void; onSelect: (t: TokenInfo) => void }) => {
+const TokenSelectorModal = ({ onClose, onSelect, balances }: { onClose: () => void; onSelect: (t: TokenInfo) => void; balances: Record<string, number> }) => {
   const [search, setSearch] = useState('');
 
   const filteredTokens = SUPPORTED_TOKENS.filter(t => 
@@ -538,7 +609,7 @@ const TokenSelectorModal = ({ onClose, onSelect }: { onClose: () => void; onSele
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-xs font-mono font-bold">0.00</p>
+                <p className="text-xs font-mono font-bold">{formatNumber(balances[t.mint] || 0)}</p>
                 <p className="text-[10px] text-gray-600 font-mono truncate w-20">{t.mint.slice(0, 4)}...{t.mint.slice(-4)}</p>
               </div>
             </button>
