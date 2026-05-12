@@ -28,7 +28,8 @@
         "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
         "signature": { "type": "string" },
         "timestamp": { "type": "string", "format": "date-time" },
-        "network": { "type": "string" }
+        "network": { "type": "string" },
+        "isMevProtected": { "type": "boolean" }
       },
       "required": ["userId", "fromToken", "toToken", "fromAmount", "toAmount", "status", "timestamp"]
     }

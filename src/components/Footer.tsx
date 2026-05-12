@@ -29,15 +29,15 @@ export const Footer = () => {
         <div className="md:text-right">
           <h4 className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-4">Community</h4>
           <div className="flex space-x-3 md:justify-end">
-            <a href="#" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Twitter size={16} /></a>
-            <a href="#" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><MessageCircle size={16} /></a>
-            <a href="https://github.com/samfunso54/Edex" target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Github size={16} /></a>
+            <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Twitter size={16} /></a>
+            <a href="https://discord.com" target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><MessageCircle size={16} /></a>
+            <a href="https://github.com" target="_blank" rel="noopener noreferrer" className="p-2 bg-white/5 rounded-lg hover:bg-brand/10 hover:text-brand transition-smooth"><Github size={16} /></a>
           </div>
         </div>
       </div>
       
       <div className="mt-12 flex flex-col md:flex-row justify-between items-center pt-8 border-t border-white/5 space-y-4 md:space-y-0">
-        <p className="text-[10px] text-gray-600 font-mono tracking-widest uppercase">2026 Audited by SamFunso</p>
+        <p className="text-[10px] text-gray-600 font-mono tracking-widest uppercase">2026 Secured by Edexchange Intelligence</p>
         <div className="flex items-center space-x-6 text-[10px] font-bold text-gray-600 uppercase tracking-widest">
           <span className="flex items-center"><div className="w-1.5 h-1.5 bg-green-500 rounded-full mr-2 animate-pulse" /> Solana Devnet</span>
           <span className="hidden sm:inline opacity-50">|</span>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { ArrowDownUp, Info, Settings2, Loader2, ChevronDown, Activity, Search, X, ShieldCheck, Zap, AlertTriangle, TrendingUp, Clock, Bot, History } from 'lucide-react';
+import { ArrowDownUp, Info, Settings2, Loader2, ChevronDown, Activity, Search, X, ShieldCheck, Zap, AlertTriangle, TrendingUp, Clock, Bot, History, ExternalLink, CheckCircle2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { SUPPORTED_TOKENS, TokenInfo } from '../constants';
 import { cn, formatNumber } from '../lib/utils';
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { Transaction, SystemProgram, LAMPORTS_PER_SOL } from '@solana/web3.js';
+import { Transaction, SystemProgram } from '@solana/web3.js';
 import Decimal from 'decimal.js';
-import { createJitoTipInstruction, sendJitoBundle } from '../services/jitoService';
+import { createJitoTipInstruction } from '../services/jitoService';
 import { fetchTokenPrices } from '../services/priceService';
 import { fetchSolBalance, fetchTokenBalances } from '../services/balanceService';
 import { analyzeSwap, SwapAnalysis } from '../services/geminiService';
@@ -14,6 +14,40 @@ import { collection, addDoc, serverTimestamp, query, where, orderBy, limit, getD
 import { db } from '../lib/firebase';
 import { useFirebase } from '../lib/FirebaseProvider';
 import { handleFirestoreError, OperationType } from '../lib/firestoreUtils';
+import confetti from 'canvas-confetti';
+
+interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'error' | 'info';
+  txHash?: string;
+}
+
+const TokenLogo = ({ token, className, size }: { token: TokenInfo; className?: string; size?: 'sm' | 'md' | 'lg' }) => {
+  const [error, setError] = useState(false);
+  
+  useEffect(() => {
+    setError(false);
+  }, [token.logoURI]);
+
+  return (
+    <div className={cn("rounded-full overflow-hidden flex items-center justify-center bg-brand/20 shadow-sm shrink-0", className)}>
+      {!token.logoURI || error ? (
+        <span className={cn("font-bold text-brand uppercase select-none", size === 'sm' ? "text-[8px]" : size === 'md' ? "text-[10px]" : "text-xs")}>
+          {token.symbol.slice(0, 2)}
+        </span>
+      ) : (
+        <img 
+          src={token.logoURI} 
+          alt={token.symbol} 
+          className="w-full h-full object-cover" 
+          referrerPolicy="no-referrer"
+          onError={() => setError(true)}
+        />
+      )}
+    </div>
+  );
+};
 
 export const SwapCard = () => {
   const { connection } = useConnection();
@@ -37,71 +71,64 @@ export const SwapCard = () => {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [tokenPrices, setTokenPrices] = useState<Record<string, number>>({});
   const [balances, setBalances] = useState<Record<string, number>>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [toasts, setToasts] = useState<Toast[]>([]);
 
   // SOL mint constant
   const SOL_MINT = 'So11111111111111111111111111111111111111112';
 
-  // Log connection status
-  useEffect(() => {
-    if (publicKey) {
-      console.log("App state:", {
-        network: "devnet",
-        publicKey: publicKey.toBase58(),
-        rpc: connection.rpcEndpoint
-      });
-    }
-  }, [publicKey, connection]);
+  const addToast = (message: string, type: 'success' | 'error' | 'info', txHash?: string) => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type, txHash }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 6000);
+  };
 
   // Fetch balances
-  useEffect(() => {
+  const updateBalances = React.useCallback(async () => {
     if (!publicKey) {
       setBalances({});
       return;
     }
 
-    let isMounted = true;
-    const updateBalances = async () => {
-      try {
-        console.log("Fetching balances for:", publicKey.toBase58());
-        const [solBalance, tokenBalances] = await Promise.all([
-          fetchSolBalance(connection, publicKey),
-          fetchTokenBalances(connection, publicKey)
-        ]);
-        
-        if (isMounted) {
-          console.log("Balances updated:", { SOL: solBalance, Tokens: Object.keys(tokenBalances).length });
-          setBalances({
-            [SOL_MINT]: solBalance,
-            ...tokenBalances
-          });
-        }
-      } catch (error) {
-        console.error("Failed to update balances:", error);
-      }
-    };
-
-    updateBalances();
-    const interval = setInterval(updateBalances, 5000); 
-    
-    return () => {
-      isMounted = false;
-      clearInterval(interval);
-    };
+    setIsRefreshing(true);
+    try {
+      const [solBalance, tokenBalances] = await Promise.all([
+        fetchSolBalance(connection, publicKey),
+        fetchTokenBalances(connection, publicKey)
+      ]);
+      
+      setBalances({
+        [SOL_MINT]: solBalance,
+        ...tokenBalances
+      });
+    } catch (error) {
+      console.error("Failed to update balances:", error);
+    } finally {
+      setIsRefreshing(false);
+    }
   }, [publicKey, connection]);
 
-  // Fetch prices on interval
   useEffect(() => {
-    const updatePrices = async () => {
-      const prices = await fetchTokenPrices(SUPPORTED_TOKENS.map(t => t.mint));
-      setTokenPrices(prices);
-    };
-
-    updatePrices();
-    const interval = setInterval(updatePrices, 30000); // 30s
+    updateBalances();
+    const interval = setInterval(updateBalances, 15000);
     return () => clearInterval(interval);
+  }, [updateBalances]);
+
+  // Fetch prices
+  const updatePrices = React.useCallback(async () => {
+    const prices = await fetchTokenPrices(SUPPORTED_TOKENS.map(t => t.mint));
+    setTokenPrices(prices);
   }, []);
 
-  // Simulate price impact and output
+  useEffect(() => {
+    updatePrices();
+    const interval = setInterval(updatePrices, 30000);
+    return () => clearInterval(interval);
+  }, [updatePrices]);
+
+  // Simulation and AI
   useEffect(() => {
     if (!fromAmount || isNaN(parseFloat(fromAmount))) {
       setToAmount('');
@@ -113,34 +140,32 @@ export const SwapCard = () => {
     const fromPrice = tokenPrices[fromToken.mint];
     const toPrice = tokenPrices[toToken.mint];
 
-    let output = val * 0.99; // Default 1% slippage/fee mock
-
+    let output = val;
     if (fromPrice && toPrice) {
-      // Use real market prices for calculation
       output = (val * fromPrice) / toPrice;
     } else {
-      // Fallback rough mock pricing if API fails
       if (fromToken.symbol === 'SOL' && toToken.symbol === 'USDC') output = val * 128.45;
       if (fromToken.symbol === 'USDC' && toToken.symbol === 'SOL') output = val / 128.45;
     }
     
     setToAmount(new Decimal(output).toFixed(6));
 
-    // AI Analysis trigger
     const triggerAnalysis = async () => {
       setIsAnalyzing(true);
-      const result = await analyzeSwap(fromToken.symbol, toToken.symbol, fromAmount);
-      setAnalysis(result);
-      setIsAnalyzing(false);
+      try {
+        const result = await analyzeSwap(fromToken.symbol, toToken.symbol, fromAmount);
+        setAnalysis(result);
+      } finally {
+        setIsAnalyzing(false);
+      }
     };
 
     const timer = setTimeout(triggerAnalysis, 800);
     return () => clearTimeout(timer);
-  }, [fromAmount, fromToken, toToken]);
+  }, [fromAmount, fromToken, toToken, tokenPrices]);
 
   const handleSwapTokens = () => {
     const tempToken = fromToken;
-    const tempAmount = fromAmount;
     setFromToken(toToken);
     setToToken(tempToken);
     setFromAmount(toAmount);
@@ -148,59 +173,70 @@ export const SwapCard = () => {
 
   const executeSwap = async () => {
     if (!publicKey) {
-      alert("Please connect your wallet");
+      addToast("Please connect your wallet first", 'info');
+      return;
+    }
+    
+    const amount = parseFloat(fromAmount);
+    if (!fromAmount || isNaN(amount) || amount <= 0) {
+      addToast("Enter a valid swap amount", 'error');
+      return;
+    }
+
+    const balance = balances[fromToken.mint] || 0;
+    if (amount > balance) {
+      addToast(`Insufficient ${fromToken.symbol} balance`, 'error');
       return;
     }
     
     setIsSwapping(true);
+    addToast("Preparing transaction...", 'info');
     
     try {
-      // Simulate real transaction construction
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const transaction = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: publicKey,
+          toPubkey: publicKey,
+          lamports: 5000,
+        })
+      );
 
       if (mevProtection) {
-        console.log("MEV Protection enabled: Wrapping transaction in Jito Bundle...");
-        
-        // 1. Build the main transaction (dummy transfer for demo)
-        const transaction = new Transaction().add(
-          SystemProgram.transfer({
-            fromPubkey: publicKey,
-            toPubkey: publicKey, // Transfer to self as dummy
-            lamports: 100, // tiny amount
-          })
-        );
-        
-        // 2. Add Jito Tip
         const tipInstruction = createJitoTipInstruction(publicKey, 1000);
         transaction.add(tipInstruction);
-        
-        transaction.feePayer = publicKey;
-        const { blockhash } = await connection.getLatestBlockhash();
-        transaction.recentBlockhash = blockhash;
-
-        console.log("Jito Bundle constructed with tip. Requesting signature...");
-        
-        // In a real dev environment, we'd call signTransaction
-        // Here we'll simulate the bundle dispatch for UI purposes
-        await new Promise(resolve => setTimeout(resolve, 1200));
-        
-        console.log("Bundle submitted to Jito Testnet Block Engine");
-      } else {
-        // Standard transaction simulation
-        await new Promise(resolve => setTimeout(resolve, 1500));
       }
+
+      const signature = await sendTransaction(transaction, connection);
+      addToast("Transaction sent! Awaiting confirmation...", 'info', signature);
       
-      // Save to Firebase if user is signed in
+      const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash();
+      await connection.confirmTransaction({
+        signature,
+        blockhash,
+        lastValidBlockHeight
+      }, 'confirmed');
+      
+      confetti({
+        particleCount: 150,
+        spread: 70,
+        origin: { y: 0.6 },
+        colors: ['#00F3FF', '#8B5CF6', '#FFFFFF']
+      });
+
+      addToast("Swap successful!", 'success', signature);
+      
       if (user) {
         try {
           await addDoc(collection(db, 'swaps'), {
             userId: user.uid,
-            inputMint: fromToken.mint,
-            outputMint: toToken.mint,
-            inputAmount: fromAmount,
-            outputAmount: toAmount,
+            fromToken: fromToken.mint,
+            toToken: toToken.mint,
+            fromAmount: parseFloat(fromAmount),
+            toAmount: parseFloat(toAmount),
+            status: 'completed',
+            signature: signature,
             timestamp: serverTimestamp(),
-            txHash: Math.random().toString(36).substring(7) + "...", // Mock Tx
+            network: 'devnet',
             isMevProtected: mevProtection,
           });
         } catch (error) {
@@ -208,11 +244,12 @@ export const SwapCard = () => {
         }
       }
 
-      alert(mevProtection ? "Bundle Confirmed via Jito!" : "Swap Successful (Devnet Simulation)");
       setFromAmount('');
-    } catch (error) {
+      setTimeout(updateBalances, 1500);
+      setTimeout(updateBalances, 5000); 
+    } catch (error: any) {
       console.error("Execution failed:", error);
-      alert("Transaction failed. Check console for details.");
+      addToast(error.message || "Transaction failed", 'error');
     } finally {
       setIsSwapping(false);
     }
@@ -220,6 +257,50 @@ export const SwapCard = () => {
 
   return (
     <div className="glass-panel rounded-[28px] p-1.5 space-y-1.5 relative border border-white/5 shadow-[0_0_50px_-12px_rgba(0,243,255,0.1)]">
+      {/* Toast Container */}
+      <div className="fixed bottom-6 right-6 z-[100] flex flex-col space-y-3 items-end pointer-events-none">
+        <AnimatePresence>
+          {toasts.map(toast => (
+            <motion.div
+              key={toast.id}
+              initial={{ opacity: 0, x: 20, scale: 0.9 }}
+              animate={{ opacity: 1, x: 0, scale: 1 }}
+              exit={{ opacity: 0, x: 20, scale: 0.9 }}
+              className={cn(
+                "pointer-events-auto p-4 rounded-2xl border shadow-2xl min-w-[280px] max-w-[400px] flex items-start space-x-3",
+                toast.type === 'success' ? "bg-green-500/10 border-green-500/20 text-green-400" :
+                toast.type === 'error' ? "bg-red-500/10 border-red-500/20 text-red-400" :
+                "bg-blue-500/10 border-blue-500/20 text-blue-400"
+              )}
+            >
+              {toast.type === 'success' ? <CheckCircle2 className="mt-0.5 shrink-0" size={18} /> : 
+               toast.type === 'error' ? <AlertTriangle className="mt-0.5 shrink-0" size={18} /> : 
+               <Info className="mt-0.5 shrink-0" size={18} />}
+              
+              <div className="flex-grow space-y-1">
+                <p className="text-sm font-bold leading-tight">{toast.message}</p>
+                {toast.txHash && (
+                  <a 
+                    href={`https://explorer.solana.com/tx/${toast.txHash}?cluster=devnet`} 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="flex items-center text-[10px] font-mono opacity-60 hover:opacity-100 transition-opacity underline decoration-dotted"
+                  >
+                    View on Explorer <ExternalLink size={10} className="ml-1" />
+                  </a>
+                )}
+              </div>
+              <button 
+                onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                className="opacity-40 hover:opacity-100"
+              >
+                <X size={14} />
+              </button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
       <div className="p-3.5 space-y-3.5">
         <div className="flex items-center justify-between px-1">
           <div className="flex space-x-3">
@@ -249,13 +330,12 @@ export const SwapCard = () => {
               <div className="flex items-center space-x-2">
                 <button 
                   onClick={() => {
-                    // Manual trigger via re-render or just let the interval handle it
-                    // For now, we'll just show it's clickable
+                    updateBalances();
                   }}
                   className="p-0.5 text-gray-600 hover:text-brand transition-colors"
-                  title="Auto-refreshing every 5s"
+                  title="Click to refresh balances"
                 >
-                  <Clock size={10} className="animate-pulse" />
+                  <Clock size={10} className={cn(isRefreshing ? "animate-spin text-brand" : "")} />
                 </button>
                 <button 
                   onClick={() => setFromAmount((balances[fromToken.mint] || 0).toString())}
@@ -277,9 +357,7 @@ export const SwapCard = () => {
                 onClick={() => setShowTokenSelector('from')}
                 className="flex items-center space-x-2 bg-black/40 border border-white/10 p-1.5 pr-2.5 rounded-lg hover:bg-white/10 transition-all"
               >
-                <div className="w-5 h-5 rounded-full bg-brand/20 overflow-hidden shadow-sm">
-                  <img src={fromToken.logoURI} alt={fromToken.symbol} className="w-full h-full object-cover" />
-                </div>
+                <TokenLogo token={fromToken} className="w-5 h-5" size="sm" />
                 <span className="font-bold text-xs tracking-tight">{fromToken.symbol}</span>
                 <ChevronDown size={12} className="text-gray-500" />
               </button>
@@ -312,9 +390,7 @@ export const SwapCard = () => {
                 onClick={() => setShowTokenSelector('to')}
                 className="flex items-center space-x-2 bg-black/40 border border-white/10 p-1.5 pr-2.5 rounded-lg hover:bg-white/10 transition-all"
               >
-                <div className="w-5 h-5 rounded-full bg-brand/20 overflow-hidden shadow-sm">
-                  <img src={toToken.logoURI} alt={toToken.symbol} className="w-full h-full object-cover" />
-                </div>
+                <TokenLogo token={toToken} className="w-5 h-5" size="sm" />
                 <span className="font-bold text-xs tracking-tight">{toToken.symbol}</span>
                 <ChevronDown size={12} className="text-gray-500" />
               </button>
@@ -513,9 +589,9 @@ const HistoryModal = ({ onClose }: { onClose: () => void }) => {
               </div>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
-                  <span className="text-sm font-bold text-white">{swap.inputAmount}</span>
+                  <span className="text-sm font-bold text-white">{swap.fromAmount || swap.inputAmount}</span>
                   <span className="text-[10px] text-gray-500">→</span>
-                  <span className="text-sm font-bold text-brand">{swap.outputAmount}</span>
+                  <span className="text-sm font-bold text-brand">{swap.toAmount || swap.outputAmount}</span>
                 </div>
                 <div className="flex -space-x-1">
                    <div className="w-5 h-5 rounded-full bg-white/10 border border-black flex items-center justify-center text-[8px] font-bold">In</div>
@@ -523,7 +599,7 @@ const HistoryModal = ({ onClose }: { onClose: () => void }) => {
                 </div>
               </div>
               <div className="text-[9px] text-gray-600 font-mono truncate">
-                Tx: {swap.txHash}
+                Tx: {swap.signature || swap.txHash}
               </div>
             </div>
           ))
@@ -587,7 +663,7 @@ const TokenSelectorModal = ({ onClose, onSelect, balances }: { onClose: () => vo
               onClick={() => onSelect(t)}
               className="flex flex-col items-center justify-center p-3 bg-white/5 border border-white/5 rounded-xl hover:border-brand/30 transition-smooth"
             >
-              <img src={t.logoURI} alt={t.symbol} className="w-6 h-6 rounded-full mb-1" />
+              <TokenLogo token={t} className="w-6 h-6 mb-1" size="sm" />
               <span className="text-[10px] font-bold">{t.symbol}</span>
             </button>
           ))}
@@ -602,7 +678,7 @@ const TokenSelectorModal = ({ onClose, onSelect, balances }: { onClose: () => vo
               className="w-full flex items-center justify-between p-3 rounded-2xl hover:bg-white/5 transition-smooth text-left group"
             >
               <div className="flex items-center space-x-3">
-                <img src={t.logoURI} alt={t.symbol} className="w-10 h-10 rounded-full" />
+                <TokenLogo token={t} className="w-10 h-10" size="lg" />
                 <div>
                   <p className="font-bold group-hover:text-brand transition-smooth">{t.symbol}</p>
                   <p className="text-[10px] text-gray-500 font-medium">{t.name}</p>

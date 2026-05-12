@@ -34,7 +34,7 @@ export const SUPPORTED_TOKENS: TokenInfo[] = [
     name: 'Bonk',
     mint: 'DezXAZ8z7PnrnMcjzrtA2WNvRPYWZ9WssCy4fJJ2ZFY3',
     decimals: 5,
-    logoURI: 'https://h6v7m54piz6fvhf7yojre7o366xdfd4vcd7fpt225sqf6p4rpx6a.arweave.net/h9v9sS-I298mN-7o66yD-T-Z9v9L-_p-A4Bv9Y8p--_?ext=png',
+    logoURI: 'https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/DezXAZ8z7PnrnMcjzrtA2WNvRPYWZ9WssCy4fJJ2ZFY3/logo.png',
   },
   {
     symbol: 'RENDER',

@@ -45,11 +45,12 @@ service cloud.firestore {
       return data.userId is string && data.userId.size() <= 128 &&
              data.fromToken is string && data.fromToken.size() <= 64 &&
              data.toToken is string && data.toToken.size() <= 64 &&
-             data.fromAmount is number && data.fromAmount > 0 &&
-             data.toAmount is number && data.toAmount > 0 &&
+             data.fromAmount is number && data.fromAmount >= 0 &&
+             data.toAmount is number && data.toAmount >= 0 &&
              data.status in ['pending', 'completed', 'failed'] &&
              (data.get('signature', '') is string && data.get('signature', '').size() <= 200) &&
-             (data.get('network', '') is string && data.get('network', '').size() <= 32);
+             (data.get('network', '') is string && data.get('network', '').size() <= 32) &&
+             (data.get('isMevProtected', false) is bool);
     }
 
     // --- Collections ---
@@ -71,7 +72,7 @@ service cloud.firestore {
       allow create: if isSignedIn() && isValidSwap(incoming()) && 
                     incoming().userId == request.auth.uid && 
                     incoming().timestamp == request.time &&
-                    incoming().status == 'pending';
+                    incoming().status in ['pending', 'completed'];
       
       allow update: if isSignedIn() && existing().userId == request.auth.uid && 
                     isValidSwap(incoming()) &&
